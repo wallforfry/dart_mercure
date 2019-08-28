@@ -1,0 +1,36 @@
+cache:
+  untracked: true
+  key: "$CI_BUILD_REF_NAME"
+  paths:
+    - packages/
+    - .pub_cache/
+
+stages:
+  - build
+  - test
+  - deploy
+  
+test:
+  stage: test
+  image: google/dart:latest
+  services:
+    - name: dunglas/mercure
+      alias: mercure
+  before_script:
+    - export PUB_CACHE=$PWD/.pub_cache/
+    - pub version
+    - pub get
+    - pub upgrade
+  script:
+    - pub run test
+  #only:
+  #  - master
+  tags:
+    - docker
+    
+variables:
+  JWT_KEY: "mercure"
+  ALLOW_ANONYMOUS: 1
+  DEMO: 1
+  PUBLISH_ALLOWED_ORIGINS: '*'
+  CORS_ALLOWED_ORIGINS: '*'
