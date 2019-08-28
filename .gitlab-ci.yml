@@ -9,7 +9,15 @@ stages:
   - build
   - test
   - deploy
-  
+
+fmt:
+  stage: build
+  image: google/dart:latest
+  script:
+    - dartfmt -w lib/ test/ bin/
+  tags:
+    - docker
+    
 test:
   stage: test
   image: google/dart:latest
