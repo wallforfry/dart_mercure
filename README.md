@@ -44,4 +44,4 @@ main() {
 
 ## Features and bugs
 
-Please file feature requests and bugs at the [issue tracker](../../issues).
+Please file feature requests and bugs at the [issue tracker](../../../issues).
