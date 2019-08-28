@@ -1,11 +1,11 @@
-Dart library for dunglas/mercure
+Dart library for [dunglas/mercure](https://github.com/dunglas/mercure)
 
 
 [license](LICENSE).
 
 ## Usage
 
-A basic usage example:
+A basic usage example of publish/subscribe :
 
 ```dart
 import 'package:dart_mercure/dart_mercure.dart';
