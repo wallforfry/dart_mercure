@@ -1,3 +1,7 @@
+## 0.1.2
+- Update Readme
+- Move to Github
+
 ## 0.1.1
 - Update package description
 - Clean code with dartfmt

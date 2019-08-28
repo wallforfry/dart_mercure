@@ -1,5 +1,8 @@
 Dart library for [dunglas/mercure](https://github.com/dunglas/mercure)
 
+- This library allow to communicate with dunglas/mercure.
+- You can publish and subscribe to topic on Mercure Hub. 
+- It can be easily integrate with other package for create firebase like notification system.
 
 [license](LICENSE).
 
@@ -44,4 +47,4 @@ main() {
 
 ## Features and bugs
 
-Please file feature requests and bugs at the [issue tracker](../../../issues).
+Please file feature requests and bugs at the issue tracker
