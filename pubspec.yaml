@@ -1,7 +1,7 @@
 name: dart_mercure
 description: A library to communicate with dunglas/mercure
 version: 0.1.0
-# homepage: https://www.example.com
+homepage: https://gitlab.com/wallforfry/dart_mercure
 author: Wallerand DELEVACQ <wallforfry@gmail.com>
 
 environment:
@@ -11,7 +11,6 @@ dependencies:
   eventsource: ^0.2.2
   http: ^0.12.0+2
   meta: ^1.1.7
-#  path: ^1.6.0
 
 dev_dependencies:
   pedantic: ^1.7.0

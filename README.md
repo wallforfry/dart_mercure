@@ -1,22 +1,47 @@
-A library for Dart developers.
+Dart library for dunglas/mercure
 
-Created from templates made available by Stagehand under a BSD-style
-[license](https://github.com/dart-lang/stagehand/blob/master/LICENSE).
+
+[license](LICENSE).
 
 ## Usage
 
-A simple usage example:
+A basic usage example:
 
 ```dart
 import 'package:dart_mercure/dart_mercure.dart';
 
 main() {
-  var awesome = new Awesome();
+
+  // Token generate with "mercure" JWT_KEY
+  String token = "YOUR_JWT_TOKEN";
+  String hub_url = "http://MERCURE_HUB_URL/hub";
+  String topic = "http://YOUR_TOPIC/FOO";
+
+  Mercure mercure = Mercure(token: token, hub_url: hub_url);
+
+  // Subscribes to topics
+  mercure.subscribeTopics(topics: <String> [topic, "ANOTHER_TOPIC"], onData: (Event event) {
+    print(event.data);
+  });
+
+  // Subscribe to topic
+  mercure.subscribeTopic(topic: topic, onData: (Event event) {
+    print(event.data);
+  });
+
+  // Publish on topic
+  mercure.publish(topic: topic, data: "DATA").then((status) {
+    if(status == 200) {
+      print("Message Sent");
+    }
+    else {
+      print('Message Failed with code : $status');
+    }
+  });
 }
+
 ```
 
 ## Features and bugs
 
-Please file feature requests and bugs at the [issue tracker][tracker].
-
-[tracker]: http://example.com/issues/replaceme
+Please file feature requests and bugs at the [issue tracker](../../issues).

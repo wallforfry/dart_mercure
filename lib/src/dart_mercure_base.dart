@@ -9,13 +9,13 @@ class Mercure {
 
     Mercure({@required this.hub_url, this.token}) : assert(hub_url != null), assert(token != null);
 
-    // Subscribe to one mercure topic
+    /// Subscribe to one mercure topic
     StreamSubscription<Event> subscribeTopic({@required String topic, @required void onData(Event event), Function onError, void onDone(), bool cancelOnError})
     {
         subscribeTopics(topics: <String> [topic], onData: onData, onError: onError, onDone: onDone, cancelOnError: cancelOnError);
     }
 
-    // Subscribe to a list of mercure topics
+    /// Subscribe to a list of mercure topics
     StreamSubscription<Event> subscribeTopics({@required List<String> topics, @required void onData(Event event), Function onError, void onDone(), bool cancelOnError})
     {
 	String params = topics.map((topic) => 'topic=$topic&').join();
@@ -24,7 +24,7 @@ class Mercure {
 	});
     }
 
-    // Publish data in mercure topic
+    /// Publish data in mercure topic
     Future<int> publish({@required String topic, @required String data}) async {
 	var response = await http.post(this.hub_url, body: {'topic': topic, 'data': data}, headers: {'Authorization': 'Bearer $token'});
 	return response.statusCode;
