@@ -1,5 +1,8 @@
 Dart library for [dunglas/mercure](https://github.com/dunglas/mercure)
 
+[![pipeline status](https://gitlab.com/wallforfry/dart_mercure/badges/master/pipeline.svg)](https://gitlab.com/wallforfry/dart_mercure/commits/master)
+[![pub package](https://img.shields.io/pub/v/dart_mercure.svg)](https://pub.dev/packages/dart_mercure)
+
 - This library allow to communicate with dunglas/mercure.
 - You can publish and subscribe to topic on Mercure Hub. 
 - It can be easily integrate with other package for create firebase like notification system.
