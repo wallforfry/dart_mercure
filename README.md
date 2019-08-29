@@ -23,7 +23,10 @@ main() {
   String hub_url = "http://MERCURE_HUB_URL/hub";
   String topic = "http://YOUR_TOPIC/FOO";
 
+  // For dart or flutter :
   Mercure mercure = Mercure(token: token, hub_url: hub_url);
+  // For flutter web :
+  // Mercure mercure = Mercure(token: token, hub_url: hub_url, client: BrowserClient());
 
   // Subscribes to topics
   mercure.subscribeTopics(topics: <String> [topic, "ANOTHER_TOPIC"], onData: (Event event) {

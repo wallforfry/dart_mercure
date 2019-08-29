@@ -1,6 +1,6 @@
 name: dart_mercure
 description: A library to communicate with dunglas/mercure. This library allow publish/subscribe on Mercure Hub. Can be use to create firebase like notification system.
-version: 0.1.2
+version: 0.1.3
 homepage: https://github.com/wallforfry/dart_mercure
 author: Wallerand DELEVACQ <wallforfry@gmail.com>
 

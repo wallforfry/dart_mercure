@@ -1,3 +1,6 @@
+## 0.1.3
+- Add flutter web support
+
 ## 0.1.2
 - Update Readme
 - Move to Github
