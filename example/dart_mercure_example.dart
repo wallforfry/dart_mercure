@@ -7,7 +7,13 @@ main() {
   String hub_url = "http://mercure/hub";
   String topic = "http://mercure/test";
 
+  // Use this in dart or flutter project :
   Mercure mercure = Mercure(token: token, hub_url: hub_url);
+
+  // Use this if you are in flutter web :
+  // don't forget to import 'package:http/browser_client.dart';
+  // Mercure mercure = Mercure(token: token, hub_url: hub_url, client: BrowserClient());
+
   mercure.subscribeTopics(
       topics: <String>[topic, "2"],
       onData: (Event event) {

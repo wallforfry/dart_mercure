@@ -25,19 +25,21 @@ void main() {
             value = event.data;
           });
       Future.delayed(const Duration(seconds: 1), () {
-        mercure.publish(topic: topic, data: "DATA").then((_) {
-          expect(value, "DATA");
+        mercure.publish(topic: topic, data: "DATA PUBLISH").then((_) {
+          expect(value, "DATA PUBLISH");
         });
       });
     });
 
     test('Test Publish', () async {
-      expect(await mercure.publish(topic: topic, data: "DATA"), 200);
+      expect(await mercure.publish(topic: topic, data: "DATA PUBLISH"), 200);
     });
 
     test('Test Publish bad token', () async {
       mercure_bad_token = Mercure(token: token + "A", hub_url: hub_url);
-      expect(await mercure_bad_token.publish(topic: topic, data: "DATA"), 401);
+      expect(
+          await mercure_bad_token.publish(topic: topic, data: "DATA BAD TOKEN"),
+          401);
     });
   });
 }

@@ -6,10 +6,13 @@ import 'package:meta/meta.dart';
 class Mercure {
   final String hub_url;
   final String token;
+  http.Client client;
 
-  Mercure({@required this.hub_url, this.token})
+  Mercure({@required this.hub_url, this.token, http.Client client})
       : assert(hub_url != null),
-        assert(token != null);
+        assert(token != null) {
+    this.client = client ?? http.Client();
+  }
 
   /// Subscribe to one mercure topic
   StreamSubscription<Event> subscribeTopic(
@@ -34,7 +37,8 @@ class Mercure {
       void onDone(),
       bool cancelOnError}) {
     String params = topics.map((topic) => 'topic=$topic&').join();
-    EventSource.connect('$hub_url?$params').then((eventSource) {
+    EventSource.connect('$hub_url?$params', client: this.client)
+        .then((eventSource) {
       eventSource.listen(onData,
           onError: onError, onDone: onDone, cancelOnError: cancelOnError);
     });
