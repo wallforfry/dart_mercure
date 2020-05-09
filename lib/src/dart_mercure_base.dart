@@ -17,9 +17,9 @@ class Mercure {
   /// Subscribe to one mercure topic
   StreamSubscription<Event> subscribeTopic(
       {@required String topic,
-      @required void onData(Event event),
+      @required void Function(Event event) onData,
       Function onError,
-      void onDone(),
+      void Function() onDone,
       bool cancelOnError}) {
     subscribeTopics(
         topics: <String>[topic],
@@ -32,11 +32,11 @@ class Mercure {
   /// Subscribe to a list of mercure topics
   StreamSubscription<Event> subscribeTopics(
       {@required List<String> topics,
-      @required void onData(Event event),
+      @required void Function(Event event) onData,
       Function onError,
-      void onDone(),
+      void Function() onDone,
       bool cancelOnError}) {
-    String params = topics.map((topic) => 'topic=$topic&').join();
+    var params = topics.map((topic) => 'topic=$topic&').join();
     EventSource.connect('$hub_url?$params', client: _client).then((eventSource) {
       eventSource.listen(onData,
           onError: onError, onDone: onDone, cancelOnError: cancelOnError);

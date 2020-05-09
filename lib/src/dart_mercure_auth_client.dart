@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 
 class AuthClient extends http.BaseClient {
-
   final String _token;
   final http.Client _inner;
 
