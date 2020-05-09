@@ -1,3 +1,6 @@
+## 0.2.0
+- #3 feat: use JWT for topic subscription
+
 ## 0.1.2
 - Update Readme
 - Move to Github
