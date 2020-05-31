@@ -21,7 +21,7 @@ main() {
 
   // Token generate with "mercure" JWT_KEY
   var token = 'YOUR_JWT_TOKEN';
-  var hub_url = 'http://MERCURE_HUB_URL/hub';
+  var hub_url = 'http://MERCURE_HUB_URL/.well-known/mercure';
   var topic = 'http://YOUR_TOPIC/FOO';
 
   var mercure = Mercure(token: token, hub_url: hub_url);
