@@ -1,3 +1,7 @@
+## 0.2.1
+- #5 fix: use the new default path in README.md
+- Use new default path in example
+
 ## 0.2.0
 - #3 feat: use JWT for topic subscription
 
