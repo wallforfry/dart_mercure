@@ -4,7 +4,7 @@ void main() {
   // Token generate with "mercure" JWT_KEY
   var token =
       'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJtZXJjdXJlIjp7InN1YnNjcmliZSI6WyIqIl0sInB1Ymxpc2giOlsiKiJdfX0.Gfj3BFrSOFhyFN0hPOYg-Pe4dfYWOKq7QJiMWYC2Z_k';
-  var hub_url = 'http://mercure/hub';
+  var hub_url = 'http://mercure/.well-known/mercure';
   var topic = 'http://mercure/test';
 
   var mercure = Mercure(token: token, hub_url: hub_url);
