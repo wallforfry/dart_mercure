@@ -1,5 +1,7 @@
-/// Dart library for dunglas/mercure.
-library dart_mercure;
+/// Publish and subscribe to a [Mercure](https://mercure.rocks) hub.
+library;
 
-export 'src/dart_mercure_base.dart';
-export 'package:eventsource/eventsource.dart';
+export 'src/mercure.dart';
+export 'src/mercure_event.dart';
+export 'src/mercure_exception.dart';
+export 'src/topic_matcher.dart' show TopicMatcher;
