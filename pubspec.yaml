@@ -1,16 +1,29 @@
 name: dart_mercure
-description: A library to communicate with dunglas/mercure. This library allow publish/subscribe on Mercure Hub. Can be use to create firebase like notification system.
-version: 0.2.1
+description: >-
+  Publish and subscribe to a Mercure hub (dunglas/mercure) from Dart, with
+  automatic reconnection and Last-Event-ID resumption.
+version: 1.0.0
 homepage: https://github.com/wallforfry/dart_mercure
+repository: https://github.com/wallforfry/dart_mercure
+issue_tracker: https://github.com/wallforfry/dart_mercure/issues
+topics:
+  - mercure
+  - sse
+  - realtime
 
 environment:
-  sdk: '>=2.4.0 <3.0.0'
+  sdk: ^3.8.0
+
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  windows:
 
 dependencies:
-  eventsource: ^0.2.2
-  http: ^0.12.0+2
-  meta: ^1.1.7
+  http: ^1.5.0
 
 dev_dependencies:
-  pedantic: ^1.7.0
-  test: ^1.6.0
+  lints: ^6.0.0
+  test: ^1.26.0
