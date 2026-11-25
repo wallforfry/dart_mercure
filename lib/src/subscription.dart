@@ -104,7 +104,6 @@ Future<void> _connectLoop({
       sink.addError(error, stackTrace);
       return;
     } on http.ClientException catch (error, stackTrace) {
-      if (isStopped) return;
       sink.addError(error, stackTrace);
     } catch (error, stackTrace) {
       sink.addError(error, stackTrace);

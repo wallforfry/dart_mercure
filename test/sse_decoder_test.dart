@@ -94,6 +94,12 @@ void main() {
     ]);
   });
 
+  test('reports an ID once, not again on the next block', () async {
+    expect(await decode(['id: 1\ndata: a\n\nevent: ping\n\n']), [
+      isEvent('a', id: '1'),
+    ]);
+  });
+
   test('keeps no state between two decoded streams', () async {
     await decode(['id: 1\nevent: ping\ndata: a\n']);
     expect(await decode(['data: b\n\n']), [isEvent('b')]);
