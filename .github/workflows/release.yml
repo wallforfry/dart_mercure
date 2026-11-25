@@ -1,0 +1,49 @@
+name: Release
+
+# Tags the version in pubspec.yaml once CI passes on master, then starts the
+# publish workflow on that tag.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Read the package version
+        id: version
+        run: |
+          version=$(yq '.version' pubspec.yaml)
+          if [[ ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+].+)?$ ]]; then
+            echo "::error::pubspec.yaml version '$version' is not a semantic version"
+            exit 1
+          fi
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      - name: Tag and publish a new version
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
+            echo "$TAG already exists, nothing to release."
+            exit 0
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA"
+          # A tag pushed with GITHUB_TOKEN triggers no workflow, but a
+          # workflow_dispatch does; pub.dev accepts it on a matching tag.
+          gh workflow run publish.yml --ref "$TAG"

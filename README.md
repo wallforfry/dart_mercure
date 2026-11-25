@@ -103,6 +103,12 @@ dart test -t integration
 
 The integration tests fail when `MERCURE_HUB_URL` or `MERCURE_JWT` is missing.
 
+## Releasing
+
+Bump `version` in `pubspec.yaml` and add the matching `CHANGELOG.md` entry in the pull request.
+Once CI passes on `master`, the Release workflow tags `v<version>` and starts the publish workflow
+on that tag. A version that is already tagged is not released again.
+
 ## Features and bugs
 
 Please file feature requests and bugs at the
