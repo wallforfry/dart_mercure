@@ -113,6 +113,59 @@ void main() {
     expect(body.hasListener, isFalse);
   });
 
+  group('while an error body is still being received', () {
+    late StreamController<String> body;
+    late Mercure mercure;
+    late StreamSubscription<MercureEvent> subscription;
+    final errors = <Object>[];
+    late Completer<void> done;
+
+    setUp(() async {
+      errors.clear();
+      done = Completer<void>();
+      body = StreamController<String>();
+      addTearDown(body.close);
+      mercure = mercureWith((_) async => eventStream(body.stream, status: 503));
+      subscription = mercure
+          .subscribe(anyTopic)
+          .listen((_) {}, onError: errors.add, onDone: done.complete);
+      body.add('Service');
+      await pumpEventQueue();
+    });
+
+    test('close() ends the stream without error', () async {
+      mercure.close();
+
+      await done.future.timeout(const Duration(seconds: 2));
+      expect(errors, isEmpty);
+      expect(body.hasListener, isFalse);
+    });
+
+    test('cancel() completes', () async {
+      await subscription.cancel().timeout(const Duration(seconds: 2));
+
+      expect(body.hasListener, isFalse);
+    });
+  });
+
+  test('stops receiving a body that is not an event stream', () async {
+    final body = StreamController<List<int>>();
+    addTearDown(body.close);
+    final mercure = mercureWith(
+      (_) async => http.StreamedResponse(
+        body.stream,
+        200,
+        headers: {'content-type': 'text/html'},
+      ),
+    );
+
+    await expectLater(
+      mercure.subscribe(anyTopic),
+      emitsInOrder([emitsError(isA<MercureSubscribeException>()), emitsDone]),
+    );
+    expect(body.hasListener, isFalse);
+  });
+
   test('ends without error when listened after close()', () async {
     final mercure = mercureWith((_) async => eventStream(Stream.value('')));
     final events = mercure.subscribe(anyTopic);

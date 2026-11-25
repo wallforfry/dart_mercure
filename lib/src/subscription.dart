@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
@@ -79,7 +80,7 @@ Future<void> _connectLoop({
             });
       final response = await _sendUnlessStopped(client, request, signal);
       if (response == null) return;
-      await _ensureEventStream(response);
+      if (!await _acceptEventStream(response, signal)) return;
       await _forwardUntil(response.stream.transform(sseDecoder), signal, (
         frame,
       ) {
@@ -147,10 +148,20 @@ Future<http.StreamedResponse?> _sendUnlessStopped(
   return result.future;
 }
 
-Future<void> _ensureEventStream(http.StreamedResponse response) async {
+/// Throws unless [response] is an event stream, or returns `false` when
+/// [signal] stops while an error body is being read.
+Future<bool> _acceptEventStream(
+  http.StreamedResponse response,
+  StopSignal signal,
+) async {
   final status = response.statusCode;
   if (status != 200) {
-    final body = await response.stream.bytesToString();
+    final chunks = <List<int>>[];
+    await _forwardUntil(response.stream, signal, chunks.add);
+    if (signal.isStopped) return false;
+    final body = utf8.decode([
+      for (final chunk in chunks) ...chunk,
+    ], allowMalformed: true);
     // Deliberate deviation from EventSource, which gives up on any non-200:
     // a hub restarting behind a proxy answers 502 or 503 for a moment.
     if (status >= 500) {
@@ -170,29 +181,31 @@ Future<void> _ensureEventStream(http.StreamedResponse response) async {
       .trim()
       .toLowerCase();
   if (mediaType != 'text/event-stream') {
-    await response.stream.drain<void>();
+    unawaited(response.stream.listen(null).cancel());
     throw MercureSubscribeException(
       'Hub answered with "$mediaType" instead of text/event-stream',
       statusCode: status,
     );
   }
+  return true;
 }
 
-/// Listens to [frames] until they end or [signal] stops. An abortable request
+/// Listens to [events] until they end or [signal] stops. An abortable request
 /// already stops the body, but not every client honours the abort trigger
-/// (`MockClient` leaves it to the handler).
-Future<void> _forwardUntil(
-  Stream<SseFrame> frames,
+/// (`MockClient` leaves it to the handler), and a client closed by
+/// `Mercure.close()` fails the body before the abort lands.
+Future<void> _forwardUntil<T>(
+  Stream<T> events,
   StopSignal signal,
-  void Function(SseFrame frame) onFrame,
+  void Function(T event) onEvent,
 ) async {
   final finished = Completer<void>();
   void finish() {
     if (!finished.isCompleted) finished.complete();
   }
 
-  final subscription = frames.listen(
-    onFrame,
+  final subscription = events.listen(
+    onEvent,
     onError: (Object error, StackTrace stackTrace) {
       if (!finished.isCompleted) finished.completeError(error, stackTrace);
     },

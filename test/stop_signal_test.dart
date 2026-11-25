@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dart_mercure/src/stop_signal.dart';
 import 'package:test/test.dart';
 
@@ -36,5 +38,31 @@ void main() {
 
     expect(calls, 1);
     expect(signal.listenerCount, 0);
+  });
+
+  test('skips a listener detached by an earlier one during stop', () {
+    final signal = StopSignal();
+    var calls = 0;
+    late final void Function() detachSecond;
+    signal.onStop(() => detachSecond());
+    detachSecond = signal.onStop(() => calls++);
+
+    signal.stop();
+
+    expect(calls, 0);
+  });
+
+  test('calls the other listeners when one throws', () {
+    final signal = StopSignal();
+    final errors = <Object>[];
+    var calls = 0;
+    signal
+      ..onStop(() => throw StateError('boom'))
+      ..onStop(() => calls++);
+
+    runZonedGuarded(signal.stop, (error, _) => errors.add(error));
+
+    expect(calls, 1);
+    expect(errors.single, isStateError);
   });
 }
