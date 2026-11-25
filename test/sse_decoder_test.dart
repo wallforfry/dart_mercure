@@ -100,6 +100,13 @@ void main() {
     ]);
   });
 
+  test('replaces malformed UTF-8 with U+FFFD', () async {
+    final frames = await Stream<List<int>>.fromIterable([
+      [...utf8.encode('data: a'), 0xFF, ...utf8.encode('b\n\n')],
+    ]).transform(sseDecoder).toList();
+    expect(frames, [isEvent('a\uFFFDb')]);
+  });
+
   test('keeps no state between two decoded streams', () async {
     await decode(['id: 1\nevent: ping\ndata: a\n']);
     expect(await decode(['data: b\n\n']), [isEvent('b')]);

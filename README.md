@@ -70,7 +70,7 @@ A subscription stream reports these errors:
   `listen` with `onError` to keep receiving updates.
 - `MercureSubscribeException` when the hub refuses the subscription with a 4xx status (for example
   a 401) or does not answer with `text/event-stream`. The stream then ends.
-- Any other error, such as a body that is not valid UTF-8, also ends the stream.
+- Any other error also ends the stream.
 
 Cancelling the stream subscription disconnects. `close()` ends every open subscription without an
 error, then closes the HTTP client if `Mercure` created it.

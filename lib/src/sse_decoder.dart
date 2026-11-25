@@ -48,12 +48,13 @@ final class SseRetry implements SseFrame {
 /// Parsing goes through `expand` rather than an `async*` generator: a
 /// generator suspended in `await for` did not complete its cancellation
 /// (observed on Dart 3.10.4), which left subscriptions hanging. The byte order
-/// mark the specification strips is already removed by `utf8.decoder`.
+/// mark the specification strips is already removed by `Utf8Decoder`, which
+/// replaces malformed bytes with U+FFFD as the specification requires.
 final StreamTransformer<List<int>, SseFrame> sseDecoder =
     StreamTransformer.fromBind((bytes) {
       final parser = _SseParser();
       return bytes
-          .transform(utf8.decoder)
+          .transform(const Utf8Decoder(allowMalformed: true))
           .transform(const LineSplitter())
           .expand(parser.parseLine);
     });

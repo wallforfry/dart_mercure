@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'mercure_event.dart';
 import 'mercure_exception.dart';
 import 'sse_decoder.dart';
+import 'stop_signal.dart';
 
 /// Opens a single-subscription stream that keeps one connection to [uri]
 /// alive, reconnecting after [retry] (or the delay the hub sends) and resuming
@@ -13,38 +14,38 @@ import 'sse_decoder.dart';
 /// Connection failures and 5xx responses are reported as non-fatal
 /// [http.ClientException] errors; a refusal by the hub is reported as a
 /// [MercureSubscribeException] and ends the stream, as does any other error.
-/// The stream also ends, without error, once [closed] completes.
+/// The stream also ends, without error, once [closing] stops.
 Stream<MercureEvent> subscriptionStream({
   required http.Client client,
   required Uri uri,
   required Map<String, String> headers,
   required Duration retry,
-  required Future<void> closed,
+  required StopSignal closing,
   String? lastEventId,
 }) {
-  final stopped = Completer<void>();
-  void stop() {
-    if (!stopped.isCompleted) stopped.complete();
-  }
-
+  final signal = StopSignal();
   late final StreamController<MercureEvent> controller;
   Future<void>? connection;
 
   controller = StreamController<MercureEvent>(
     onListen: () {
-      unawaited(closed.then((_) => stop()));
-      connection = _connectLoop(
-        client: client,
-        uri: uri,
-        headers: headers,
-        retry: retry,
-        lastEventId: lastEventId,
-        stopped: stopped.future,
-        sink: controller,
-      ).whenComplete(() => unawaited(controller.close()));
+      final detach = closing.onStop(signal.stop);
+      connection =
+          _connectLoop(
+            client: client,
+            uri: uri,
+            headers: headers,
+            retry: retry,
+            lastEventId: lastEventId,
+            signal: signal,
+            sink: controller,
+          ).whenComplete(() {
+            detach();
+            unawaited(controller.close());
+          });
     },
     onCancel: () {
-      stop();
+      signal.stop();
       return connection;
     },
   );
@@ -57,28 +58,29 @@ Future<void> _connectLoop({
   required Map<String, String> headers,
   required Duration retry,
   required String? lastEventId,
-  required Future<void> stopped,
+  required StopSignal signal,
   required StreamSink<MercureEvent> sink,
 }) async {
   var resumeFrom = lastEventId;
   var delay = retry;
-  var isStopped = false;
-  unawaited(stopped.then((_) => isStopped = true));
 
-  while (!isStopped) {
+  while (!signal.isStopped) {
     final resume = resumeFrom;
+    final abort = Completer<void>();
+    final detachAbort = signal.onStop(abort.complete);
     try {
-      final request = http.AbortableRequest('GET', uri, abortTrigger: stopped)
-        ..headers.addAll({
-          ...headers,
-          'Accept': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          if (resume != null && resume.isNotEmpty) 'Last-Event-ID': resume,
-        });
-      final response = await _sendUnlessStopped(client, request, stopped);
+      final request =
+          http.AbortableRequest('GET', uri, abortTrigger: abort.future)
+            ..headers.addAll({
+              ...headers,
+              'Accept': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              if (resume != null && resume.isNotEmpty) 'Last-Event-ID': resume,
+            });
+      final response = await _sendUnlessStopped(client, request, signal);
       if (response == null) return;
       await _ensureEventStream(response);
-      await _forwardUntil(response.stream.transform(sseDecoder), stopped, (
+      await _forwardUntil(response.stream.transform(sseDecoder), signal, (
         frame,
       ) {
         switch (frame) {
@@ -108,29 +110,41 @@ Future<void> _connectLoop({
     } catch (error, stackTrace) {
       sink.addError(error, stackTrace);
       return;
+    } finally {
+      detachAbort();
     }
-    if (!isStopped) await _sleep(delay, stopped);
+    await _sleep(delay, signal);
   }
 }
 
-/// Returns `null` when [stopped] completes before the response headers: not
-/// every client honours the abort trigger, so the late response is discarded.
+/// Returns `null` when [signal] stops before the response headers: not every
+/// client honours the abort trigger, so the late response is discarded.
 Future<http.StreamedResponse?> _sendUnlessStopped(
   http.Client client,
   http.BaseRequest request,
-  Future<void> stopped,
-) async {
-  final sent = client.send(request);
-  final response = await Future.any([sent, stopped.then((_) => null)]);
-  if (response == null) {
-    unawaited(
-      sent.then(
-        (late) => late.stream.listen(null).cancel(),
-        onError: (Object _) {},
-      ),
-    );
-  }
-  return response;
+  StopSignal signal,
+) {
+  final result = Completer<http.StreamedResponse?>();
+  final detach = signal.onStop(() {
+    if (!result.isCompleted) result.complete(null);
+  });
+  client
+      .send(request)
+      .then(
+        (response) {
+          detach();
+          if (result.isCompleted) {
+            unawaited(response.stream.listen(null).cancel());
+          } else {
+            result.complete(response);
+          }
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          detach();
+          if (!result.isCompleted) result.completeError(error, stackTrace);
+        },
+      );
+  return result.future;
 }
 
 Future<void> _ensureEventStream(http.StreamedResponse response) async {
@@ -164,36 +178,46 @@ Future<void> _ensureEventStream(http.StreamedResponse response) async {
   }
 }
 
-/// Listens to [frames] until they end or [stopped] completes. An abortable
-/// request already stops the body, but not every client honours the abort
-/// trigger (`MockClient` leaves it to the handler).
+/// Listens to [frames] until they end or [signal] stops. An abortable request
+/// already stops the body, but not every client honours the abort trigger
+/// (`MockClient` leaves it to the handler).
 Future<void> _forwardUntil(
   Stream<SseFrame> frames,
-  Future<void> stopped,
+  StopSignal signal,
   void Function(SseFrame frame) onFrame,
 ) async {
   final finished = Completer<void>();
+  void finish() {
+    if (!finished.isCompleted) finished.complete();
+  }
+
   final subscription = frames.listen(
     onFrame,
-    onError: finished.completeError,
-    onDone: finished.complete,
+    onError: (Object error, StackTrace stackTrace) {
+      if (!finished.isCompleted) finished.completeError(error, stackTrace);
+    },
+    onDone: finish,
     cancelOnError: true,
   );
+  final detach = signal.onStop(finish);
   try {
-    await Future.any([finished.future, stopped]);
+    await finished.future;
   } finally {
+    detach();
     await subscription.cancel();
   }
 }
 
-Future<void> _sleep(Duration delay, Future<void> stopped) {
+Future<void> _sleep(Duration delay, StopSignal signal) {
   final woken = Completer<void>();
-  final timer = Timer(delay, woken.complete);
-  unawaited(
-    stopped.then((_) {
-      timer.cancel();
-      if (!woken.isCompleted) woken.complete();
-    }),
-  );
+  late final void Function() detach;
+  final timer = Timer(delay, () {
+    detach();
+    woken.complete();
+  });
+  detach = signal.onStop(() {
+    timer.cancel();
+    if (!woken.isCompleted) woken.complete();
+  });
   return woken.future;
 }

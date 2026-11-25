@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dart_mercure/dart_mercure.dart';
+import 'package:dart_mercure/src/stop_signal.dart';
+import 'package:dart_mercure/src/subscription.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:test/test.dart';
 
 import 'support/mock_hub.dart';
@@ -109,6 +112,42 @@ void main() {
     await done.future.timeout(const Duration(seconds: 2));
     expect(body.hasListener, isFalse);
   });
+
+  test('ends without error when listened after close()', () async {
+    final mercure = mercureWith((_) async => eventStream(Stream.value('')));
+    final events = mercure.subscribe(anyTopic);
+
+    mercure.close();
+
+    await expectLater(events, emitsDone);
+  });
+
+  test(
+    'stays attached to the client once, however often it reconnects',
+    () async {
+      final closing = StopSignal();
+      var attempts = 0;
+      final events = subscriptionStream(
+        client: MockClient.streaming((_, _) async {
+          attempts++;
+          return eventStream(Stream.value('data: $attempts\n\n'));
+        }),
+        uri: hubUrl,
+        headers: const {},
+        retry: Duration.zero,
+        closing: closing,
+      );
+
+      final subscription = events.listen((_) {});
+      while (attempts < 20) {
+        await pumpEventQueue();
+      }
+      expect(closing.listenerCount, 1);
+
+      await subscription.cancel();
+      expect(closing.listenerCount, 0);
+    },
+  );
 
   test('refuses to publish or subscribe once closed', () {
     final mercure = mercureWith((_) async => eventStream(Stream.value('')))
