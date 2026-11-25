@@ -57,28 +57,22 @@ void main() {
     expect(lateBody.hasListener, isFalse);
   });
 
-  test(
-    'cancels while waiting to reconnect',
-    () async {
-      var attempts = 0;
-      final mercure = mercureWith((_) async {
-        attempts++;
-        return eventStream(Stream.value('data: x\n\n'));
-      }, defaultRetry: const Duration(hours: 1));
+  test('cancels while waiting to reconnect', () async {
+    var attempts = 0;
+    final mercure = mercureWith((_) async {
+      attempts++;
+      return eventStream(Stream.value('data: x\n\n'));
+    }, defaultRetry: const Duration(hours: 1));
 
-      final received = Completer<MercureEvent>();
-      final subscription = mercure
-          .subscribe(anyTopic)
-          .listen(received.complete);
-      await received.future;
-      await pumpEventQueue();
+    final received = Completer<MercureEvent>();
+    final subscription = mercure.subscribe(anyTopic).listen(received.complete);
+    await received.future;
+    await pumpEventQueue();
 
-      await subscription.cancel();
+    await subscription.cancel();
 
-      expect(attempts, 1);
-    },
-    timeout: const Timeout(Duration(seconds: 5)),
-  );
+    expect(attempts, 1);
+  }, timeout: const Timeout(Duration(seconds: 5)));
 
   test('close() ends open subscriptions of its own client', () async {
     final server = await openHub();
