@@ -62,13 +62,18 @@ tokens (RFC 9068, `typ: at+jwt`) whose grants are listed in `authorization_detai
 `publish` throws a `MercurePublishException` carrying the HTTP status when the hub rejects an
 update.
 
-A subscription stream reports two kinds of errors:
+A subscription stream reports these errors:
 
-- `ClientException` for a lost or failed connection. The stream stays open and reconnects after the
-  delay the hub requested, or `defaultRetry` (3 seconds) until it sends one. `await for` stops at
-  the first error, so use `listen` with `onError` to keep receiving updates.
-- `MercureSubscribeException` when the hub refuses the subscription (for example a 401) or does not
-  answer with `text/event-stream`. The stream then ends.
+- `ClientException` for a lost or failed connection, or a 5xx response such as a 502 from a proxy
+  while the hub restarts. The stream stays open and reconnects after the delay the hub requested,
+  or `defaultRetry` (3 seconds) until it sends one. `await for` stops at the first error, so use
+  `listen` with `onError` to keep receiving updates.
+- `MercureSubscribeException` when the hub refuses the subscription with a 4xx status (for example
+  a 401) or does not answer with `text/event-stream`. The stream then ends.
+- Any other error, such as a body that is not valid UTF-8, also ends the stream.
+
+Cancelling the stream subscription disconnects. `close()` ends every open subscription without an
+error, then closes the HTTP client if `Mercure` created it.
 
 ### Resuming
 
@@ -106,8 +111,12 @@ The integration tests fail when `MERCURE_HUB_URL` or `MERCURE_JWT` is missing.
 ## Releasing
 
 Bump `version` in `pubspec.yaml` and add the matching `CHANGELOG.md` entry in the pull request.
-Once CI passes on `master`, the Release workflow tags `v<version>` and starts the publish workflow
-on that tag. A version that is already tagged is not released again.
+Once CI passes on `master`, the Release workflow tags `v<version>` and, unless pub.dev already has
+that version, starts the publish workflow on the tag. Re-running a failed Release workflow resumes
+where it stopped.
+
+The package's admin page on pub.dev must allow publishing from GitHub Actions for this repository,
+with the tag pattern `v{{version}}` and both `push` and `workflow_dispatch` events enabled.
 
 ## Features and bugs
 
