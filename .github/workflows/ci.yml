@@ -12,7 +12,7 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
       - run: dart pub get
       - run: dart format --output=none --set-exit-if-changed .
@@ -26,7 +26,7 @@ jobs:
         # Lowest supported SDK and latest stable.
         sdk: ['3.8', stable]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: ${{ matrix.sdk }}
@@ -49,7 +49,7 @@ jobs:
         ports:
           - 80:80
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
       - run: dart pub get
       - name: Wait for the hub
