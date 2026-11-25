@@ -17,7 +17,10 @@ New:
 - `publish` accepts `id`, `private`, `type` and `retry`.
 - Subscriptions reconnect after a lost connection, honour the hub's `retry` delay and resume with
   `Last-Event-ID`; `lastEventId` sets the starting point.
-- Subscriptions refused by the hub end with a `MercureSubscribeException`.
+- Subscriptions refused by the hub end with a `MercureSubscribeException`; 5xx responses are
+  retried like lost connections.
+- `close()` ends every open subscription.
+- Each version merged to `master` is tagged and published to pub.dev automatically.
 
 ## 0.2.1
 - #5 fix: use the new default path in README.md

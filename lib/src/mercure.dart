@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:http/http.dart' as http;
 
 import 'mercure_event.dart';
@@ -36,11 +38,13 @@ final class Mercure {
 
   final http.Client _client;
   final bool _ownsClient;
+  final Completer<void> _closed = Completer<void>();
 
   /// Publishes [data] to [topics] and returns the update ID assigned by the
   /// hub. The first topic is canonical, the others are alternates.
   ///
-  /// Throws a [MercurePublishException] if the hub rejects the update.
+  /// Throws a [MercurePublishException] if the hub rejects the update, and a
+  /// [StateError] once [close] has been called.
   Future<String> publish({
     required List<String> topics,
     required String data,
@@ -49,6 +53,7 @@ final class Mercure {
     String? type,
     Duration? retry,
   }) async {
+    _ensureOpen();
     _ensureTopics(topics);
     final body = Uri(
       queryParameters: {
@@ -85,27 +90,40 @@ final class Mercure {
   /// failures arrive as non-fatal [http.ClientException] errors, so listen
   /// with `onError` rather than `await for` to keep receiving updates. A
   /// refusal by the hub arrives as a [MercureSubscribeException] and ends the
-  /// stream. Cancel the subscription to disconnect.
+  /// stream, as does any other error. Cancel the subscription or call [close]
+  /// to disconnect.
+  ///
+  /// Throws a [StateError] once [close] has been called.
   Stream<MercureEvent> subscribe(
     List<TopicMatcher> matchers, {
     String? lastEventId,
-  }) => subscriptionStream(
-    client: _client,
-    uri: hubUrl.replace(
-      queryParameters: {
-        ...hubUrl.queryParametersAll,
-        ...matcherQueryParameters(matchers),
-      },
-    ),
-    headers: _authorization(subscriberToken),
-    retry: defaultRetry,
-    lastEventId: lastEventId,
-  );
+  }) {
+    _ensureOpen();
+    return subscriptionStream(
+      client: _client,
+      uri: hubUrl.replace(
+        queryParameters: {
+          ...hubUrl.queryParametersAll,
+          ...matcherQueryParameters(matchers),
+        },
+      ),
+      headers: _authorization(subscriberToken),
+      retry: defaultRetry,
+      closed: _closed.future,
+      lastEventId: lastEventId,
+    );
+  }
 
-  /// Closes the HTTP client if this instance created it, which also ends
-  /// every open subscription.
+  /// Ends every open subscription, then closes the HTTP client if this
+  /// instance created it. Calling it again has no effect.
   void close() {
+    if (_closed.isCompleted) return;
+    _closed.complete();
     if (_ownsClient) _client.close();
+  }
+
+  void _ensureOpen() {
+    if (_closed.isCompleted) throw StateError('This Mercure client is closed');
   }
 }
 

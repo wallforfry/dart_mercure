@@ -82,9 +82,21 @@ void main() {
   });
 
   test('ignores an ID containing NUL', () async {
-    expect(await decode(['id: 1\n\nid: a\u0000b\ndata: x\n\n']), [
+    expect(await decode(['id: 1\ndata: a\n\nid: a\u0000b\ndata: x\n\n']), [
+      isEvent('a', id: '1'),
       isEvent('x', id: '1'),
     ]);
+  });
+
+  test('reports an ID set by a block without data', () async {
+    expect(await decode(['id: 7\n\n']), [
+      isA<SseLastEventId>().having((f) => f.lastEventId, 'lastEventId', '7'),
+    ]);
+  });
+
+  test('keeps no state between two decoded streams', () async {
+    await decode(['id: 1\nevent: ping\ndata: a\n']);
+    expect(await decode(['data: b\n\n']), [isEvent('b')]);
   });
 
   test('strips a leading byte order mark', () async {

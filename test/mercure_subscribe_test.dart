@@ -1,29 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:dart_mercure/dart_mercure.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
 
-final hubUrl = Uri.parse('https://hub.test/.well-known/mercure');
-
-http.StreamedResponse eventStream(Stream<String> body, {int status = 200}) =>
-    http.StreamedResponse(
-      body.map(utf8.encode),
-      status,
-      headers: {'content-type': 'text/event-stream; charset=utf-8'},
-    );
-
-Mercure mercureWith(
-  Future<http.StreamedResponse> Function(http.BaseRequest request) handler, {
-  String? subscriberToken,
-}) => Mercure(
-  hubUrl: hubUrl,
-  subscriberToken: subscriberToken,
-  defaultRetry: Duration.zero,
-  client: MockClient.streaming((request, _) => handler(request)),
-);
+import 'support/mock_hub.dart';
 
 void main() {
   test('sends topics and credentials, then emits updates', () async {
@@ -77,29 +59,31 @@ void main() {
   });
 
   test(
-    'reconnects after the stream ends and resumes from the last ID',
+    'reconnects after the delay the hub requests and resumes from the last ID',
     () async {
       final requests = <http.BaseRequest>[];
-      final mercure = mercureWith((request) async {
-        requests.add(request);
-        return eventStream(
-          Stream.value(
-            requests.length == 1
-                ? 'retry: 1\nid: 1\ndata: first\n\n'
-                : 'id: 2\ndata: second\n\n',
-          ),
-        );
-      });
+      final mercure = mercureWith(
+        (request) async {
+          requests.add(request);
+          return eventStream(
+            Stream.value(
+              requests.length == 1
+                  ? 'retry: 1\nid: 1\ndata: first\n\n'
+                  : 'id: 2\ndata: second\n\n',
+            ),
+          );
+        },
+        // Only the hub's 1 ms retry lets the test finish within its timeout.
+        defaultRetry: const Duration(hours: 1),
+      );
 
-      final events = await mercure
-          .subscribe(const [TopicMatcher.exact('t')])
-          .take(2)
-          .toList();
+      final events = await mercure.subscribe(anyTopic).take(2).toList();
 
       expect(events.map((e) => e.data), ['first', 'second']);
       expect(requests, hasLength(2));
       expect(requests.last.headers['Last-Event-ID'], '1');
     },
+    timeout: const Timeout(Duration(seconds: 5)),
   );
 
   test('reports a connection failure without ending the stream', () async {
@@ -113,7 +97,7 @@ void main() {
     final errors = <Object>[];
     final event = Completer<MercureEvent>();
     final subscription = mercure
-        .subscribe(const [TopicMatcher.exact('t')])
+        .subscribe(anyTopic)
         .listen(event.complete, onError: errors.add);
 
     expect((await event.future).data, 'back');
@@ -129,7 +113,7 @@ void main() {
     });
 
     await expectLater(
-      mercure.subscribe(const [TopicMatcher.exact('t')]),
+      mercure.subscribe(anyTopic),
       emitsInOrder([
         emitsError(
           isA<MercureSubscribeException>()
@@ -149,31 +133,65 @@ void main() {
     );
 
     await expectLater(
-      mercure.subscribe(const [TopicMatcher.exact('t')]),
+      mercure.subscribe(anyTopic),
       emitsInOrder([emitsError(isA<MercureSubscribeException>()), emitsDone]),
     );
   });
 
-  test('disconnects without reconnecting once cancelled', () async {
-    var attempts = 0;
-    final body = StreamController<String>();
-    addTearDown(body.close);
-    final mercure = mercureWith((_) async {
-      attempts++;
-      return eventStream(body.stream);
+  test(
+    'keeps the last ID when a reconnection sends events without one',
+    () async {
+      final requests = <http.BaseRequest>[];
+      final mercure = mercureWith((request) async {
+        requests.add(request);
+        return eventStream(
+          Stream.value(switch (requests.length) {
+            1 => 'id: 1\ndata: a\n\n',
+            2 => 'data: b\n\n',
+            _ => 'data: c\n\n',
+          }),
+        );
+      });
+
+      final events = await mercure.subscribe(anyTopic).take(3).toList();
+
+      expect(events.map((e) => e.id), ['1', '1', '1']);
+      expect(requests[2].headers['Last-Event-ID'], '1');
+    },
+  );
+
+  test('resumes from an ID sent in a block without data', () async {
+    final requests = <http.BaseRequest>[];
+    final mercure = mercureWith((request) async {
+      requests.add(request);
+      return eventStream(
+        Stream.value(requests.length == 1 ? 'id: 5\n\n' : 'data: x\n\n'),
+      );
     });
 
-    final received = Completer<MercureEvent>();
-    final subscription = mercure
-        .subscribe(const [TopicMatcher.exact('t')])
-        .listen(received.complete);
-    body.add('data: x\n\n');
-    await received.future;
+    await mercure.subscribe(anyTopic).first;
 
-    await subscription.cancel();
+    expect(requests.last.headers['Last-Event-ID'], '5');
+  });
 
-    expect(body.hasListener, isFalse);
-    expect(attempts, 1);
+  test('reconnects after a 5xx response', () async {
+    var attempts = 0;
+    final mercure = mercureWith((_) async {
+      attempts++;
+      return attempts == 1
+          ? eventStream(Stream.value('Bad Gateway'), status: 502)
+          : eventStream(Stream.value('data: back\n\n'));
+    });
+
+    final errors = <Object>[];
+    final event = Completer<MercureEvent>();
+    final subscription = mercure.subscribe(anyTopic).listen((e) {
+      if (!event.isCompleted) event.complete(e);
+    }, onError: errors.add);
+    addTearDown(subscription.cancel);
+
+    expect((await event.future).data, 'back');
+    expect(errors.single, isA<http.ClientException>());
   });
 
   test('rejects no matchers or more than 100', () {

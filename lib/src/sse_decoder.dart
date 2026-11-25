@@ -23,6 +23,16 @@ final class SseEvent implements SseFrame {
   final String data;
 }
 
+/// An event ID set by a block that carried no data, which updates the last
+/// event ID without dispatching an event.
+final class SseLastEventId implements SseFrame {
+  /// Creates a last event ID update.
+  const SseLastEventId(this.lastEventId);
+
+  /// The new last event ID; empty when the server reset it.
+  final String lastEventId;
+}
+
 /// A reconnection delay requested by the server.
 final class SseRetry implements SseFrame {
   /// Creates a reconnection delay request.
@@ -37,7 +47,8 @@ final class SseRetry implements SseFrame {
 ///
 /// Parsing goes through `expand` rather than an `async*` generator: a
 /// generator suspended in `await for` did not complete its cancellation
-/// (observed on Dart 3.10.4), which left subscriptions hanging.
+/// (observed on Dart 3.10.4), which left subscriptions hanging. The byte order
+/// mark the specification strips is already removed by `utf8.decoder`.
 final StreamTransformer<List<int>, SseFrame> sseDecoder =
     StreamTransformer.fromBind((bytes) {
       final parser = _SseParser();
@@ -55,16 +66,12 @@ final class _SseParser {
   List<String> _data = [];
   String _type = '';
   String? _lastEventId;
-  bool _isFirstLine = true;
+  bool _blockHasId = false;
 
-  List<SseFrame> parseLine(String rawLine) {
-    final line = _isFirstLine && rawLine.startsWith('\uFEFF')
-        ? rawLine.substring(1)
-        : rawLine;
-    _isFirstLine = false;
-
+  /// Comment lines (`:` first) need no branch: their field name is empty, so
+  /// the switch ignores them.
+  List<SseFrame> parseLine(String line) {
     if (line.isEmpty) return _dispatch();
-    if (line.startsWith(':')) return const [];
 
     final (field, value) = _splitField(line);
     switch (field) {
@@ -74,6 +81,7 @@ final class _SseParser {
         _type = value;
       case 'id' when !value.contains('\u0000'):
         _lastEventId = value;
+        _blockHasId = true;
       case 'retry' when _digits.hasMatch(value):
         return [SseRetry(Duration(milliseconds: int.parse(value)))];
     }
@@ -81,17 +89,21 @@ final class _SseParser {
   }
 
   List<SseFrame> _dispatch() {
-    final frames = _data.isEmpty
-        ? const <SseFrame>[]
-        : [
-            SseEvent(
-              lastEventId: _lastEventId,
-              type: _type.isEmpty ? 'message' : _type,
-              data: _data.join('\n'),
-            ),
-          ];
+    final lastEventId = _lastEventId;
+    final List<SseFrame> frames = switch ((_data.isEmpty, _blockHasId)) {
+      (false, _) => [
+        SseEvent(
+          lastEventId: lastEventId,
+          type: _type.isEmpty ? 'message' : _type,
+          data: _data.join('\n'),
+        ),
+      ],
+      (true, true) when lastEventId != null => [SseLastEventId(lastEventId)],
+      _ => const [],
+    };
     _data = [];
     _type = '';
+    _blockHasId = false;
     return frames;
   }
 }
