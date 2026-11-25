@@ -61,6 +61,19 @@ final StreamTransformer<List<int>, SseFrame> sseDecoder =
 
 final RegExp _digits = RegExp(r'^\d+$');
 
+/// The specification sets no upper bound on `retry`. Capping it keeps a broken
+/// or hostile hub from overflowing `int` (which ended the subscription) or
+/// `Duration` (a negative delay, which reconnected in a tight loop).
+const Duration maxReconnectionDelay = Duration(days: 1);
+
+Duration _reconnectionDelay(String digits) {
+  final milliseconds = int.tryParse(digits);
+  return milliseconds == null ||
+          milliseconds > maxReconnectionDelay.inMilliseconds
+      ? maxReconnectionDelay
+      : Duration(milliseconds: milliseconds);
+}
+
 /// Holds the per-stream buffers the event stream format accumulates between
 /// blank lines.
 final class _SseParser {
@@ -84,7 +97,7 @@ final class _SseParser {
         _lastEventId = value;
         _blockHasId = true;
       case 'retry' when _digits.hasMatch(value):
-        return [SseRetry(Duration(milliseconds: int.parse(value)))];
+        return [SseRetry(_reconnectionDelay(value))];
     }
     return const [];
   }

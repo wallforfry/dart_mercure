@@ -6,7 +6,7 @@ import 'dart:async';
 /// completes, so every wait that ends on its own would leave one behind on a
 /// long-lived subscription.
 final class StopSignal {
-  final Set<void Function()> _listeners = {};
+  final Set<void Function()> _listeners = Set.identity();
   bool _isStopped = false;
 
   /// Whether [stop] has been called.

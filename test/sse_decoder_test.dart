@@ -81,6 +81,16 @@ void main() {
     ]);
   });
 
+  test('caps a retry delay too large for int or Duration', () async {
+    final frames = await decode([
+      'retry: 99999999999999999999\nretry: 9223372036854775807\n\n',
+    ]);
+    expect(frames, [
+      for (var i = 0; i < 2; i++)
+        isA<SseRetry>().having((r) => r.delay, 'delay', maxReconnectionDelay),
+    ]);
+  });
+
   test('ignores an ID containing NUL', () async {
     expect(await decode(['id: 1\ndata: a\n\nid: a\u0000b\ndata: x\n\n']), [
       isEvent('a', id: '1'),

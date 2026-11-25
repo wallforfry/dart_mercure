@@ -65,4 +65,22 @@ void main() {
     expect(calls, 1);
     expect(errors.single, isStateError);
   });
+
+  test('keeps two equal tear-offs as separate listeners', () {
+    final signal = StopSignal();
+    final counter = _Counter();
+    final detachFirst = signal.onStop(counter.increment);
+    signal.onStop(counter.increment);
+
+    detachFirst();
+    signal.stop();
+
+    expect(counter.calls, 1);
+  });
+}
+
+final class _Counter {
+  int calls = 0;
+
+  void increment() => calls++;
 }
