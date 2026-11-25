@@ -1,0 +1,65 @@
+name: Release
+
+# Once CI passes on master, tags the version in pubspec.yaml and starts the
+# publish workflow on that tag unless pub.dev already has the version, so a
+# re-run recovers from a failed dispatch or publication.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+
+jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Read the package name and version
+        id: package
+        run: |
+          name=$(yq '.name' pubspec.yaml)
+          version=$(yq '.version' pubspec.yaml)
+          if [[ ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+].+)?$ ]]; then
+            echo "::error::pubspec.yaml version '$version' is not a semantic version"
+            exit 1
+          fi
+          {
+            echo "name=$name"
+            echo "version=$version"
+            echo "tag=v$version"
+          } >> "$GITHUB_OUTPUT"
+      - name: Tag the version
+        env:
+          TAG: ${{ steps.package.outputs.tag }}
+        run: |
+          status=0
+          git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null || status=$?
+          case $status in
+            0) echo "$TAG already exists." ;;
+            2) gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA" > /dev/null ;;
+            *) echo "::error::could not list the tags of origin (exit $status)"; exit 1 ;;
+          esac
+      - name: Publish unless pub.dev has the version
+        env:
+          NAME: ${{ steps.package.outputs.name }}
+          VERSION: ${{ steps.package.outputs.version }}
+          TAG: ${{ steps.package.outputs.tag }}
+        run: |
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            "https://pub.dev/api/packages/$NAME/versions/$VERSION")
+          case $status in
+            200) echo "$NAME $VERSION is already on pub.dev." ;;
+            # A tag pushed with GITHUB_TOKEN triggers no workflow, but a
+            # workflow_dispatch does; pub.dev accepts it on a matching tag.
+            404) gh workflow run publish.yml --ref "$TAG" ;;
+            *) echo "::error::pub.dev answered $status for $NAME $VERSION"; exit 1 ;;
+          esac

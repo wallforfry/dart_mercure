@@ -1,0 +1,3 @@
+tags:
+  # Needs a running hub: see "Running the tests" in README.md.
+  integration:

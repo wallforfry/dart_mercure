@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: dart analyze --fatal-infos
+      - run: dart pub publish --dry-run
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Lowest supported SDK and latest stable.
+        sdk: ['3.8', stable]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ matrix.sdk }}
+      - run: dart pub get
+      - run: dart test -x integration
+
+  integration:
+    runs-on: ubuntu-latest
+    env:
+      MERCURE_HUB_URL: http://localhost/.well-known/mercure
+      # Test-only key shared with the hub service below; it protects nothing.
+      MERCURE_JWT_KEY: test-only-mercure-key-0123456789abcdef
+    services:
+      mercure:
+        image: dunglas/mercure:v1.1.2
+        env:
+          SERVER_NAME: ':80'
+          MERCURE_PUBLISHER_JWT_KEY: test-only-mercure-key-0123456789abcdef
+          MERCURE_SUBSCRIBER_JWT_KEY: test-only-mercure-key-0123456789abcdef
+        ports:
+          - 80:80
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - name: Wait for the hub
+        run: curl --silent --output /dev/null --retry 30 --retry-all-errors --retry-delay 1 "$MERCURE_HUB_URL"
+      - name: Issue a test token
+        run: echo "MERCURE_JWT=$(tool/test_jwt.sh "$MERCURE_JWT_KEY" https://localhost "$MERCURE_HUB_URL")" >> "$GITHUB_ENV"
+      - run: dart test -t integration
